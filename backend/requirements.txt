@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+PyTDC
+rdkit
+mordredcommunity
+scikit-learn
+catboost
+lightgbm
+shap
+imbalanced-learn
+pandas
+numpy
+python-multipart
+requests
+google-genai
