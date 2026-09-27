@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BatchRouteImport } from './routes/batch'
+import { Route as CompareRouteImport } from './routes/compare'
 import { Route as MethodRouteImport } from './routes/method'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const BatchRoute = BatchRouteImport.update({
   path: '/batch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompareRoute = CompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MethodRoute = MethodRouteImport.update({
   id: '/method',
   path: '/method',
@@ -32,30 +38,34 @@ const MethodRoute = MethodRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/compare': typeof CompareRoute
   '/method': typeof MethodRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/compare': typeof CompareRoute
   '/method': typeof MethodRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/compare': typeof CompareRoute
   '/method': typeof MethodRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/batch' | '/method'
+  fullPaths: '/' | '/batch' | '/compare' | '/method'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/batch' | '/method'
-  id: '__root__' | '/' | '/batch' | '/method'
+  to: '/' | '/batch' | '/compare' | '/method'
+  id: '__root__' | '/' | '/batch' | '/compare' | '/method'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BatchRoute: typeof BatchRoute
+  CompareRoute: typeof CompareRoute
   MethodRoute: typeof MethodRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compare': {
+      id: '/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof CompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/method': {
       id: '/method'
       path: '/method'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BatchRoute: BatchRoute,
+  CompareRoute: CompareRoute,
   MethodRoute: MethodRoute,
 }
 export const routeTree = rootRouteImport

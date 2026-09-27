@@ -1,20 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, Copy, Sparkles, TriangleAlert, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Copy, Sparkles, TriangleAlert, Loader2, SplitSquareHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 
-import heroImg from "@/assets/hero-molecules.jpg";
 import { MoleculeViewer3D } from "@/components/MoleculeViewer3D";
-
 import { AppShell } from "@/components/AppShell";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { EXAMPLES, isValidSmiles, predict, type Prediction } from "@/lib/predict";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
+import { CountUp } from "@/components/ui/count-up";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -24,226 +22,248 @@ function band(p: number, high: string, mid: string, low: string) {
   return p >= 0.7 ? high : p >= 0.4 ? mid : low;
 }
 
-function ProbabilityBar({ label, p }: { label: string; p: number }) {
-  const pct = Math.round(p * 100);
+function LiquidProgressBar({ p, colorClass }: { p: number; colorClass: string }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm font-medium">{label}</span>
-        <span className="font-mono text-2xl font-semibold text-primary">{pct}%</span>
-      </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-        <div className="h-full rounded-full bg-gradient-signal transition-all duration-700" style={{ width: `${pct}%` }} />
-      </div>
-      <p className="text-xs text-muted-foreground">{band(p, "High", "Moderate", "Low")} probability</p>
+    <div className="relative h-3 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/5 border border-black/10 dark:border-white/10">
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${p * 100}%` }}
+        transition={{ duration: 1.5, type: "spring", bounce: 0.2 }}
+        className={cn("absolute inset-y-0 left-0 rounded-full", colorClass)}
+      >
+        {/* Shimmer effect inside the bar */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-[200%] animate-[shimmer_2s_infinite]" />
+      </motion.div>
     </div>
   );
 }
 
-const DESCRIPTOR_ROWS: { key: keyof Prediction["descriptors"]; label: string; unit: string; help: string }[] = [
-  { key: "mw", label: "Molecular weight", unit: "Da", help: "Rule-of-5 limit: 500" },
-  { key: "logp", label: "cLogP", unit: "", help: "Lipophilicity; sweet spot 0–5" },
-  { key: "hbd", label: "H-bond donors", unit: "", help: "Rule-of-5 limit: 5" },
-  { key: "hba", label: "H-bond acceptors", unit: "", help: "Rule-of-5 limit: 10" },
-  { key: "tpsa", label: "Polar surface area", unit: "Å²", help: "HIA falls sharply above ~90" },
-  { key: "rotb", label: "Rotatable bonds", unit: "", help: "Veber limit: 10" },
-  { key: "rings", label: "Ring count", unit: "", help: "Total ring closures" },
-  { key: "heavyAtoms", label: "Heavy atoms", unit: "", help: "Non-hydrogen atoms" },
-];
+const DESCRIPTOR_ROWS = [
+  { key: "mw", label: "Molecular weight", unit: "Da", help: "Rule-of-5 limit: 500", limit: 500 },
+  { key: "logp", label: "cLogP", unit: "", help: "Lipophilicity; sweet spot 0–5", limit: 5 },
+  { key: "hbd", label: "H-bond donors", unit: "", help: "Rule-of-5 limit: 5", limit: 5 },
+  { key: "hba", label: "H-bond acceptors", unit: "", help: "Rule-of-5 limit: 10", limit: 10 },
+  { key: "tpsa", label: "Polar surface area", unit: "Å²", help: "HIA falls sharply above ~90", limit: 140 },
+  { key: "rotb", label: "Rotatable bonds", unit: "", help: "Veber limit: 10", limit: 10 },
+] as const;
 
 function Index() {
-  const [smiles, setSmiles] = useState("CN1C=NC2=C1C(=O)N(C)C(=O)N2C");
-  const [submitted, setSubmitted] = useState(smiles);
-  
-  const isValid = isValidSmiles(submitted);
+  const [smiles, setSmiles] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const navigate = useNavigate();
+
+  const isValid = isValidSmiles(smiles);
+  const isSubmittedValid = isValidSmiles(submitted);
 
   const { data: result, isLoading, error } = useQuery<Prediction>({
     queryKey: ["predict", submitted],
     queryFn: () => predict(submitted),
-    enabled: isValid && submitted.trim() !== "",
+    enabled: isSubmittedValid && submitted.trim() !== "",
     retry: false
   });
 
-  const invalid = submitted.trim() !== "" && !isValid;
+  const invalid = smiles.trim() !== "" && !isValid;
 
-  const run = (s: string) => { setSmiles(s); setSubmitted(s); };
+  const typeSMILES = async (s: string) => {
+    setSmiles("");
+    let current = "";
+    for (let i = 0; i < s.length; i++) {
+      current += s[i];
+      setSmiles(current);
+      await new Promise(r => setTimeout(r, 15)); // Typing speed
+    }
+    setSubmitted(s);
+  };
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  };
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
+  };
 
   return (
     <AppShell>
-      <section className="relative mb-10 overflow-hidden rounded-2xl border border-border/60 shadow-panel">
-        <img src={heroImg} alt="Glowing molecular network visualization" className="absolute inset-0 size-full object-cover opacity-45" />
-        <div className="relative bg-gradient-to-r from-background/90 via-background/70 to-background/20 px-6 py-14 sm:px-12 sm:py-20">
-          <Badge variant="secondary" className="mb-4 font-mono text-[11px] uppercase tracking-widest text-primary">
-            ADME · QSAR framework
-          </Badge>
-          <h1 className="max-w-2xl text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
-            Predict oral absorption from a <span className="text-primary">chemical structure</span>
-          </h1>
-          <p className="mt-4 max-w-xl text-sm text-muted-foreground sm:text-base">
-            OralAbsPredict estimates <strong className="text-foreground">human intestinal absorption (HIA)</strong> and{" "}
-            <strong className="text-foreground">human oral bioavailability (HOB)</strong> using a Python backend API.
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-2 shadow-panel">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4 text-primary" /> Structure input
-            </CardTitle>
-            <CardDescription>Enter a SMILES string, or start from an example compound.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={(e) => { e.preventDefault(); setSubmitted(smiles); }} className="space-y-3">
-              <div className="flex gap-2">
-                <Input value={smiles} onChange={(e) => setSmiles(e.target.value)}
-                  placeholder="e.g. CC(=O)OC1=CC=CC=C1C(=O)O" className="font-mono text-sm" aria-label="SMILES string" />
-                <Button type="submit" className="shrink-0 shadow-glow" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="ml-1 size-4 animate-spin" /> : <>Predict <ArrowRight className="ml-1 size-4" /></>}
-                </Button>
-              </div>
-              {invalid && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive">
-                  <TriangleAlert className="size-3.5" /> This doesn't look like a valid SMILES string.
-                </p>
-              )}
-            </form>
-            <Separator />
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Examples</p>
-            <div className="space-y-1.5">
-              {EXAMPLES.map((ex) => (
-                <button key={ex.name} onClick={() => run(ex.smiles)}
-                  className="group flex w-full items-center justify-between rounded-md border border-border/60 bg-secondary/40 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-secondary">
-                  <div>
-                    <div className="text-sm font-medium">{ex.name}</div>
-                    <div className="text-xs text-muted-foreground">{ex.note}</div>
-                  </div>
-                  <span className="max-w-28 truncate font-mono text-[10px] text-muted-foreground group-hover:text-primary">
-                    {ex.smiles}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6 lg:col-span-3">
-          {error ? (
-             <Card className="flex min-h-64 items-center justify-center shadow-panel border-destructive">
-               <p className="max-w-xs text-center text-sm text-destructive">
-                 Failed to predict: {error.message}
-               </p>
-             </Card>
-          ) : isLoading ? (
-             <Card className="flex min-h-64 items-center justify-center shadow-panel">
-               <Loader2 className="size-8 animate-spin text-muted-foreground" />
-             </Card>
-          ) : result ? (
-            <>
-              <Card className="shadow-panel">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">3D Molecular Structure</CardTitle>
-                  <CardDescription>Interactive 3D model generated by the backend engine.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <MoleculeViewer3D smiles={result.smiles} />
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-panel">
-                <CardHeader className="pb-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">Prediction results</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="font-mono text-[11px]">
-                        confidence {Math.round(result.confidence * 100)}%
-                      </Badge>
-                      <Button variant="ghost" size="sm"
-                        onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); toast.success("Result copied as JSON"); }}>
-                        <Copy className="size-3.5" /> Copy
-                      </Button>
-                    </div>
-                  </div>
-                  <CardDescription className="break-all font-mono text-xs">{result.smiles}</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-6 sm:grid-cols-2">
-                  <div className="rounded-lg border border-border/60 bg-secondary/30 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">HIA · Intestinal absorption</p>
-                    <ProbabilityBar label={result.hia.label} p={result.hia.probability} />
-                    <div className="mt-4 text-xs text-muted-foreground">
-                      <p><strong>Model:</strong> {result.hia.model_used}</p>
-                      <p><strong>AD:</strong> {result.hia.ad_info.explanation}</p>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border/60 bg-secondary/30 p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">HOB · Oral bioavailability</p>
-                    <ProbabilityBar label={result.hob.label} p={result.hob.probability} />
-                    <div className="mt-4 text-xs text-muted-foreground">
-                      <p><strong>Model:</strong> {result.hob.model_used}</p>
-                      <p><strong>AD:</strong> {result.hob.ad_info.explanation}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-panel">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Physicochemical profile</CardTitle>
-                  <CardDescription>Descriptors estimated from the structure.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {DESCRIPTOR_ROWS.map(({ key, label, unit, help }) => (
-                    <div key={key} className="rounded-md border border-border/60 bg-secondary/30 p-3" title={help}>
-                      <div className="font-mono text-lg font-semibold text-foreground">
-                        {result.descriptors[key]}
-                        {unit && <span className="ml-1 text-xs text-muted-foreground">{unit}</span>}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">{label}</div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-panel">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Drug-likeness screening</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={result.lipinskiViolations.length === 0 ? "secondary" : "destructive"}
-                      className={result.lipinskiViolations.length === 0 ? "text-signal-high" : ""}>
-                      Lipinski rule of 5: {result.lipinskiViolations.length === 0 ? "pass" : `${result.lipinskiViolations.length} violation${result.lipinskiViolations.length > 1 ? "s" : ""}`}
-                    </Badge>
-                    <Badge variant={result.veberViolations.length === 0 ? "secondary" : "destructive"}
-                      className={result.veberViolations.length === 0 ? "text-signal-high" : ""}>
-                      Veber rules: {result.veberViolations.length === 0 ? "pass" : `${result.veberViolations.length} violation${result.veberViolations.length > 1 ? "s" : ""}`}
-                    </Badge>
-                  </div>
-                  {(result.lipinskiViolations.length > 0 || result.veberViolations.length > 0 || result.flags.length > 0) && (
-                    <ul className="space-y-1.5">
-                      {[...result.lipinskiViolations, ...result.veberViolations, ...result.flags].map((f) => (
-                        <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-signal-mid" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid gap-6 lg:grid-cols-5 mt-4">
+        
+        {/* Left Column: Input */}
+        <motion.div variants={itemVariants} className="lg:col-span-2 flex flex-col gap-6">
+          <GlassSurface intensity="high" className="p-6">
+            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground mb-1">
+              <Sparkles className="size-5 text-primary" /> Structure input
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">Enter a SMILES string, or pick a sample.</p>
+            
+            <form onSubmit={(e) => { e.preventDefault(); setSubmitted(smiles); }} className="space-y-4">
+              <div className="relative">
+                <Input 
+                  value={smiles} 
+                  onChange={(e) => setSmiles(e.target.value)}
+                  placeholder="e.g. CC(=O)OC1=CC=CC=C1C(=O)O" 
+                  className={cn(
+                    "font-mono text-sm bg-black/10 dark:bg-white/5 border-black/20 dark:border-white/10 transition-shadow duration-300",
+                    smiles.length > 0 && isValid && "shadow-[0_0_15px_rgba(34,211,238,0.3)] border-cyan-500/50 dark:border-cyan-400/50",
+                    invalid && "shadow-[0_0_15px_rgba(251,113,133,0.3)] border-coral-400/50"
+                  )} 
+                />
+                <AnimatePresence>
+                  {invalid && (
+                    <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                      className="absolute -bottom-6 left-0 flex items-center gap-1.5 text-xs text-destructive">
+                      <TriangleAlert className="size-3.5" /> Invalid SMILES
+                    </motion.p>
                   )}
-                  <Progress value={result.confidence * 100} className="h-1.5" />
-                  <p className="text-xs text-muted-foreground">Heuristic confidence metric based on physicochemical boundaries.</p>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <Card className="flex min-h-64 items-center justify-center shadow-panel">
-              <p className="max-w-xs text-center text-sm text-muted-foreground">
-                {invalid ? "Fix the SMILES string above to see predictions." : "Enter a SMILES string and press Predict to see HIA and HOB estimates."}
-              </p>
-            </Card>
-          )}
-        </div>
-      </section>
+                </AnimatePresence>
+              </div>
+              <LiquidButton type="submit" variant="primary" disabled={isLoading || invalid || !smiles.trim()} className="w-full text-sm h-10">
+                {isLoading ? "Analyzing..." : "Predict"}
+                {isLoading ? <Loader2 className="ml-2 size-4 animate-spin" /> : <ArrowRight className="ml-2 size-4" />}
+              </LiquidButton>
+            </form>
+
+            <div className="mt-8">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Examples</p>
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLES.map((ex) => (
+                  <button key={ex.name} onClick={() => typeSMILES(ex.smiles)}
+                    className="rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:shadow-[0_0_10px_rgba(255,255,255,0.1)] active:scale-95">
+                    {ex.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </GlassSurface>
+        </motion.div>
+
+        {/* Right Column: Results */}
+        <motion.div variants={itemVariants} className="lg:col-span-3">
+          <AnimatePresence mode="wait">
+            {!submitted && !isLoading ? (
+               <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+                  <GlassSurface className="flex h-full min-h-[400px] flex-col items-center justify-center p-8 text-center opacity-60">
+                    <div className="mb-4 rounded-full bg-black/10 dark:bg-white/5 p-4 ring-1 ring-black/10 dark:ring-white/10">
+                      <Sparkles className="size-8 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground">The biochemical engine is standing by.<br/>Enter a structure to begin.</p>
+                  </GlassSurface>
+               </motion.div>
+            ) : isLoading ? (
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+                <GlassSurface className="flex h-full min-h-[400px] flex-col items-center justify-center p-8 text-center">
+                  <Loader2 className="mb-4 size-10 animate-spin text-primary drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
+                  <p className="animate-pulse text-sm text-muted-foreground">Computing ADME properties...</p>
+                </GlassSurface>
+              </motion.div>
+            ) : error ? (
+              <motion.div key="error" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+                <GlassSurface className="flex min-h-[400px] flex-col items-center justify-center border-destructive/50 bg-destructive/10 p-8 text-center">
+                  <TriangleAlert className="mb-4 size-10 text-destructive" />
+                  <p className="text-sm text-destructive">{error.message}</p>
+                </GlassSurface>
+              </motion.div>
+            ) : result ? (
+              <motion.div key="result" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                
+                {/* Result Header & 3D */}
+                <GlassSurface className="p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold tracking-tight text-foreground">{result.name || "Compound"}</h3>
+                      <p className="font-mono text-xs text-muted-foreground max-w-sm truncate">{result.smiles}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <LiquidButton variant="secondary" size="sm" className="px-4" onClick={() => navigate({ to: "/compare", search: { a: result.smiles } })}>
+                        Compare with... <SplitSquareHorizontal className="ml-2 size-4" />
+                      </LiquidButton>
+                      <LiquidButton variant="ghost" size="default" onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); toast.success("Copied"); }}>
+                        <Copy className="size-4" />
+                      </LiquidButton>
+                    </div>
+                  </div>
+                  <div className="h-[320px] overflow-hidden rounded-xl border border-black/10 dark:border-white/5 bg-black/5 dark:bg-black/20">
+                     <MoleculeViewer3D smiles={result.smiles} className="h-full border-0" />
+                  </div>
+                </GlassSurface>
+
+                {/* Predictions */}
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <GlassSurface className="p-5 flex flex-col gap-2">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Intestinal Absorption</span>
+                      <span className={cn("font-mono text-3xl font-bold", band(result.hia.probability, "text-signal-high", "text-signal-mid", "text-signal-low"))}>
+                        <CountUp to={result.hia.probability * 100} />%
+                      </span>
+                    </div>
+                    <LiquidProgressBar 
+                      p={result.hia.probability} 
+                      colorClass={band(result.hia.probability, "bg-signal-high", "bg-signal-mid", "bg-signal-low")} 
+                    />
+                    <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+                      <span>{band(result.hia.probability, "High", "Moderate", "Low")}</span>
+                      <span>{result.hia.label}</span>
+                    </div>
+                  </GlassSurface>
+
+                  <GlassSurface className="p-5 flex flex-col gap-2">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bioavailability</span>
+                      <span className={cn("font-mono text-3xl font-bold", band(result.hob.probability, "text-signal-high", "text-signal-mid", "text-signal-low"))}>
+                        <CountUp to={result.hob.probability * 100} />%
+                      </span>
+                    </div>
+                    <LiquidProgressBar 
+                      p={result.hob.probability} 
+                      colorClass={band(result.hob.probability, "bg-signal-high", "bg-signal-mid", "bg-signal-low")} 
+                    />
+                    <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+                      <span>{band(result.hob.probability, "High", "Moderate", "Low")}</span>
+                      <span>{result.hob.label}</span>
+                    </div>
+                  </GlassSurface>
+                </div>
+
+                {/* Descriptors */}
+                <GlassSurface className="p-6">
+                  <h4 className="text-sm font-semibold mb-4">Physicochemical Profile</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {DESCRIPTOR_ROWS.map(({ key, label, unit, limit, help }) => {
+                      const val = result.descriptors[key as keyof Prediction["descriptors"]];
+                      const isViolation = typeof val === 'number' && val > limit;
+                      return (
+                        <div key={key} title={help}
+                          className={cn(
+                            "group relative overflow-hidden rounded-lg border p-3 transition-colors",
+                            isViolation ? "border-destructive/30 bg-destructive/10" : "border-black/10 dark:border-white/5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10"
+                          )}>
+                          <div className={cn("font-mono text-xl font-medium", isViolation ? "text-destructive" : "text-foreground")}>
+                            {val} <span className="text-xs opacity-50">{unit}</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground mt-1">{label}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  
+                  {/* Violations */}
+                  {(result.lipinskiViolations.length > 0 || result.veberViolations.length > 0) && (
+                    <div className="mt-6 space-y-2 rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+                      {[...result.lipinskiViolations, ...result.veberViolations].map((f, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-destructive">
+                          <AlertTriangle className="size-4 shrink-0" />
+                          <span>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </GlassSurface>
+
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
     </AppShell>
   );
 }

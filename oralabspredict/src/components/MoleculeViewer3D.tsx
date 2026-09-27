@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as $3Dmol from "3dmol";
 
-export function MoleculeViewer3D({ smiles }: { smiles: string }) {
+export function MoleculeViewer3D({ smiles, className = "h-64" }: { smiles: string; className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,11 @@ export function MoleculeViewer3D({ smiles }: { smiles: string }) {
         const sdfData = await res.text();
         viewer.clear();
         viewer.addModel(sdfData, "sdf");
-        viewer.setStyle({}, { stick: { colorscheme: "Jmol" } });
+        // Stick and sphere representation with Jmol coloring
+        viewer.setStyle({}, { 
+          stick: { colorscheme: "Jmol", radius: 0.15 }, 
+          sphere: { colorscheme: "Jmol", scale: 0.3 } 
+        });
         viewer.zoomTo();
         viewer.render();
       } catch (err) {
@@ -46,7 +50,7 @@ export function MoleculeViewer3D({ smiles }: { smiles: string }) {
   }, [smiles]);
 
   return (
-    <div className="relative w-full h-64 bg-background/50 rounded-lg overflow-hidden border border-border/60">
+    <div className={`relative w-full ${className} bg-background/50 rounded-lg overflow-hidden border border-border/60`}>
       <div ref={containerRef} className="w-full h-full" />
       {error && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/80">

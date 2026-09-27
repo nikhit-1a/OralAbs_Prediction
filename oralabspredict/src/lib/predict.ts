@@ -8,6 +8,8 @@ export type ADInfo = { in_domain: boolean; explanation: string };
 
 export type Prediction = {
   smiles: string;
+  name?: string;
+  iupacName?: string;
   descriptors: Descriptors;
   hia: { probability: number; label: string; model_used: string; top_features: Feature[]; ad_info: ADInfo };
   hob: { probability: number; label: string; model_used: string; top_features: Feature[]; ad_info: ADInfo };
@@ -135,17 +137,34 @@ export async function predict(raw: string): Promise<Prediction> {
   const smiles = raw.trim();
   const d = computeDescriptors(smiles);
   
-  // Call backend API
-  const res = await fetch("http://127.0.0.1:8000/predict", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ smiles })
-  });
+  // Call backend API and PubChem concurrently
+  const [res, pubchemRes] = await Promise.all([
+    fetch("http://127.0.0.1:8000/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ smiles })
+    }),
+    fetch(`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/${encodeURIComponent(smiles)}/property/Title,IUPACName/JSON`).catch(() => null)
+  ]);
   
   if (!res.ok) {
     throw new Error(`API error: ${res.statusText}`);
   }
   const data = await res.json();
+
+  let name = undefined;
+  let iupacName = undefined;
+  if (pubchemRes && pubchemRes.ok) {
+    try {
+      const pubData = await pubchemRes.json();
+      if (pubData.PropertyTable?.Properties?.[0]) {
+        name = pubData.PropertyTable.Properties[0].Title;
+        iupacName = pubData.PropertyTable.Properties[0].IUPACName;
+      }
+    } catch (e) {
+      console.warn("Failed to parse PubChem response");
+    }
+  }
   
   const hiaP = data.HIA?.probability ?? 0;
   const hobP = data.HOB?.probability ?? 0;
@@ -173,7 +192,7 @@ export async function predict(raw: string): Promise<Prediction> {
   );
 
   return {
-    smiles, descriptors: d,
+    smiles, name, iupacName, descriptors: d,
     hia: { 
       probability: round(hiaP, 3), 
       label: bandLabel(hiaP, "HIA"),

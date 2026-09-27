@@ -2,10 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Download, FlaskConical, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 
 import { AppShell } from "@/components/AppShell";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -62,7 +63,6 @@ function BatchPage() {
       const outputLines = text.split("\n").map(l => l.trim()).filter(Boolean);
       // Skip header
       const dataRows = outputLines.slice(1).map(line => {
-        // Simple comma split (assuming no commas in smiles or status)
         const parts = line.split(",");
         return {
           smiles: parts[0],
@@ -94,92 +94,137 @@ function BatchPage() {
     URL.revokeObjectURL(url);
   };
 
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  };
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
+  };
+
   return (
     <AppShell>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Batch screening</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Paste one SMILES per line (up to 200) to rank a compound set by predicted HIA and HOB using the backend API.
-        </p>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="shadow-panel">
-          <CardHeader>
-            <CardTitle className="text-base">Compound list</CardTitle>
-            <CardDescription>One SMILES per line.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Textarea value={input} onChange={(e) => setInput(e.target.value)} rows={10}
-              className="font-mono text-xs" aria-label="Batch SMILES input" />
-            <Button onClick={runBatch} disabled={loading} className="w-full shadow-glow">
-              {loading ? <Loader2 className="size-4 animate-spin" /> : <FlaskConical className="size-4" />} Run batch prediction
-            </Button>
-          </CardContent>
-        </Card>
-        <div className="space-y-6 lg:col-span-2">
-          {stats && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: "Structures", value: stats.total },
-                { label: "Valid", value: stats.valid },
-                { label: "High HIA (≥80%)", value: stats.highHia },
-                { label: "High HOB (≥70%)", value: stats.highHob },
-              ].map((s) => (
-                <Card key={s.label} className="shadow-panel">
-                  <CardContent className="p-4">
-                    <div className="font-mono text-2xl font-semibold text-primary">{s.value}</div>
-                    <div className="text-xs text-muted-foreground">{s.label}</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-          <Card className="shadow-panel">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base">Results</CardTitle>
-              {rows && (
-                <Button variant="outline" size="sm" onClick={downloadCsv}>
-                  <Download className="size-3.5" /> CSV
-                </Button>
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex flex-col gap-6 mt-4">
+        
+        <motion.div variants={itemVariants} className="mb-4">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-foreground">Batch Screening</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Paste one SMILES per line (up to 200) to rank a compound set by predicted HIA and HOB using the backend API.
+          </p>
+        </motion.div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Input Panel */}
+          <motion.div variants={itemVariants}>
+            <GlassSurface intensity="high" className="p-6">
+              <h2 className="text-lg font-bold mb-2 text-cyan-400">Compound list</h2>
+              <p className="text-sm text-muted-foreground mb-4">One SMILES per line.</p>
+              
+              <Textarea 
+                value={input} 
+                onChange={(e) => setInput(e.target.value)} 
+                rows={10}
+                className="font-mono text-xs bg-black/5 dark:bg-white/5 border-black/10 dark:border-white/10 resize-none mb-4" 
+                aria-label="Batch SMILES input" 
+              />
+              <LiquidButton onClick={runBatch} disabled={loading} variant="primary" className="w-full">
+                {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <FlaskConical className="mr-2 size-4" />} 
+                {loading ? "Running batch..." : "Run batch prediction"}
+              </LiquidButton>
+            </GlassSurface>
+          </motion.div>
+
+          {/* Results Panel */}
+          <motion.div variants={itemVariants} className="space-y-6 lg:col-span-2">
+            
+            <AnimatePresence mode="popLayout">
+              {stats && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }} 
+                  animate={{ opacity: 1, scale: 1 }} 
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                >
+                  {[
+                    { label: "Structures", value: stats.total, color: "text-foreground" },
+                    { label: "Valid", value: stats.valid, color: "text-cyan-400" },
+                    { label: "High HIA (≥80%)", value: stats.highHia, color: "text-signal-high" },
+                    { label: "High HOB (≥70%)", value: stats.highHob, color: "text-signal-high" },
+                  ].map((s) => (
+                    <GlassSurface key={s.label} className="p-4 flex flex-col justify-center items-center text-center">
+                      <div className={`font-mono text-3xl font-bold ${s.color}`}>{s.value}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
+                    </GlassSurface>
+                  ))}
+                </motion.div>
               )}
-            </CardHeader>
-            <CardContent>
+            </AnimatePresence>
+
+            <GlassSurface className="p-6 flex flex-col h-full min-h-[400px]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-foreground">Results Table</h3>
+                <AnimatePresence>
+                  {rows && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                      <LiquidButton variant="ghost" size="sm" onClick={downloadCsv}>
+                        <Download className="mr-2 size-4" /> Download CSV
+                      </LiquidButton>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {rows ? (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-lg border border-black/5 dark:border-white/5">
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>SMILES</TableHead>
-                        <TableHead className="text-right">HIA (%)</TableHead>
-                        <TableHead className="text-right">HOB (%)</TableHead>
-                        <TableHead className="text-right">Status</TableHead>
+                    <TableHeader className="bg-black/5 dark:bg-white/5">
+                      <TableRow className="border-black/10 dark:border-white/10 hover:bg-transparent">
+                        <TableHead className="text-muted-foreground">SMILES</TableHead>
+                        <TableHead className="text-right text-muted-foreground">HIA (%)</TableHead>
+                        <TableHead className="text-right text-muted-foreground">HOB (%)</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.map((r, i) => (
-                        <TableRow key={`${r.smiles}-${i}`}>
-                          <TableCell className="max-w-52 truncate font-mono text-xs">{r.smiles}</TableCell>
-                          {r.status === "Success" ? (
-                            <>
-                              <TableCell className="text-right font-mono text-xs text-signal-high">{Math.round(r.hia_prob * 100)}%</TableCell>
-                              <TableCell className="text-right font-mono text-xs">{Math.round(r.hob_prob * 100)}%</TableCell>
-                              <TableCell className="text-right text-xs text-muted-foreground">Success</TableCell>
-                            </>
-                          ) : (
-                            <TableCell colSpan={3} className="text-right text-xs text-destructive">{r.status}</TableCell>
-                          )}
-                        </TableRow>
-                      ))}
+                      <AnimatePresence>
+                        {rows.map((r, i) => (
+                          <motion.tr 
+                            key={`${r.smiles}-${i}`}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="border-black/5 dark:border-white/5 hover:bg-black/5 dark:bg-white/5 transition-colors"
+                          >
+                            <TableCell className="max-w-[200px] truncate font-mono text-xs">{r.smiles}</TableCell>
+                            {r.status === "Success" ? (
+                              <>
+                                <TableCell className="text-right font-mono text-xs text-signal-high">{Math.round(r.hia_prob * 100)}%</TableCell>
+                                <TableCell className="text-right font-mono text-xs">{Math.round(r.hob_prob * 100)}%</TableCell>
+                                <TableCell className="text-right text-xs text-muted-foreground">Success</TableCell>
+                              </>
+                            ) : (
+                              <TableCell colSpan={3} className="text-right text-xs text-destructive">{r.status}</TableCell>
+                            )}
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
                     </TableBody>
                   </Table>
                 </div>
               ) : (
-                <p className="py-10 text-center text-sm text-muted-foreground">Run a batch to see the ranked table here.</p>
+                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-60">
+                  <div className="mb-4 rounded-full bg-black/5 dark:bg-white/5 p-4 ring-1 ring-black/10 dark:ring-white/10">
+                    <FlaskConical className="size-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Run a batch prediction to see the ranked table here.</p>
+                </div>
               )}
-            </CardContent>
-          </Card>
+            </GlassSurface>
+
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     </AppShell>
   );
 }
